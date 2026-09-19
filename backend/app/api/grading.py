@@ -55,6 +55,10 @@ def _to_response(results: dict) -> GradingResponse:
                     max_marks=float(grade.get("max_marks", 0)),
                     feedback=str(grade.get("feedback", "")),
                     retrieved_chunks=list(grade.get("retrieved_chunks", [])),
+                    status=str(grade.get("status", "completed")),
+                    manual_review_reason=grade.get("manual_review_reason"),
+                    trajectory=list(grade.get("trajectory", [])),
+                    token_usage=dict(grade.get("token_usage", {})),
                 )
             )
         students.append(

@@ -270,3 +270,34 @@
 - In-process rate limiting is suitable for a single backend process; a distributed deployment should use shared storage such as Redis.  
 - OCR quality depends on scan clarity and handwriting quality.  
 - Existing local files such as grades.db and data/student_pdfs/s1.pdf may contain non-synthetic historical data and are ignored by Git.  
+# Week 16 Agentic Extension
+
+## Context Engineering Technique
+
+Each planner iteration receives a bounded context pack containing the question, model answer, mapped student answer, flagged OCR text, at most four retrieved chunks, the current grade and verification result, and the six most recent concise action summaries. Complete tool outputs and the full trajectory remain in `AgentState` and are not repeatedly appended to planner context.
+
+## Agentic Pattern
+
+This is a single-agent per-question loop. The LLM chooses a schema-validated action: `retrieve_context`, `grade_answer`, `verify_grade`, `request_clarification`, or `finish`. The Python loop executes that action, updates state, and asks the planner again. The loop stops on a safe finish, manual review, tool failure, or `AGENT_MAX_ITERATIONS` (default 5). Action ordering is not fixed.
+
+The fixed Week 15 pipeline remains responsible for upload handling, parsing, OCR, semantic mapping, and persistence; only the fixed per-question `retrieve once -> grade once` decision stage was replaced with this observation-action loop.
+
+## Evaluation Harness
+
+`backend/app/evaluation/` contains a from-scratch harness with six deterministic behavioral cases. It measures terminal task completion, tool-call correctness, trajectory length, failure classes, and token usage availability. The cases call the actual `run_question_agent` loop. The measured deterministic results are in `docs/evaluation-results.md`; scripted runs report token counts as unavailable because no external provider was called.
+
+## Skill vs Agent
+
+A skill is a deterministic capability such as OCR, answer mapping, RAG retrieval, mark validation, or SQLite persistence. The agent is the decision-making controller that chooses which allowed capability to invoke next based on intermediate results. Skills do not choose subsequent actions, and the agent cannot write files or SQLite records directly.
+
+## Token and Cost Accounting
+
+`AgentState.token_usage` aggregates prompt/input, completion/output, and total tokens for the question. Gemini usage metadata and vLLM OpenAI-compatible `usage` objects are captured when present, including provider retries and fallback grading calls. Individual trajectory records retain per-action usage. Providers without exact usage, such as Ollama in this implementation, report unavailable rather than fabricated counts. No monetary cost is claimed because provider pricing and live token totals are not available for the deterministic run.
+
+## Failure Injection Test
+
+The harness injects a `TimeoutError` from the RAG retrieval tool for `retrieval-timeout`. The observed trajectory is `retrieve_context` followed by a failed tool record and `manual_review`. No evidence is fabricated, grading is not called, and no final SQLite grade row is inserted. This is classified as a soft failure.
+
+## Tool vs Agent Boundary
+
+The LLM selects only the finite action enum and validated arguments. Python executes retrieval, grading, verification, and terminal-state handling. SQLite writes remain application-controlled after a completed agent result; incomplete/manual-review cases retain explicit status and do not insert an artificial final grade row.

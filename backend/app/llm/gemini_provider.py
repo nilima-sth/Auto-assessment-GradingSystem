@@ -5,6 +5,7 @@ from backend.app.core.config import get_settings
 from backend.app.llm.base import SYSTEM_INSTRUCTION, build_grading_user_content
 from backend.app.llm.grading_tools import build_grading_tool_declarations, execute_grading_tool
 from backend.app.schemas.grading import GradeEvaluation
+from backend.app.agent.schemas import AgentDecision, GradeVerification
 
 
 class GeminiProvider:
@@ -14,6 +15,7 @@ class GeminiProvider:
             raise RuntimeError("GEMINI_API_KEY is required when LLM_PROVIDER=gemini.")
         self.settings = settings
         self.client = genai.Client(api_key=settings.gemini_api_key)
+        self._last_usage: dict | None = None
 
     def _extract_function_call(self, response: object) -> tuple[str, dict] | None:
         for candidate in getattr(response, "candidates", []) or []:
@@ -24,15 +26,85 @@ class GeminiProvider:
                     return str(function_call.name), dict(function_call.args or {})
         return None
 
+    @staticmethod
+    def _usage(response: object) -> dict | None:
+        metadata = getattr(response, "usage_metadata", None)
+        if not metadata:
+            return None
+        return {
+            "prompt_tokens": getattr(metadata, "prompt_token_count", 0),
+            "completion_tokens": getattr(metadata, "candidates_token_count", 0),
+            "total_tokens": getattr(metadata, "total_token_count", 0),
+            "source": "gemini",
+        }
+
+    def consume_last_usage(self) -> dict | None:
+        usage = self._last_usage
+        self._last_usage = None
+        return usage
+
+    @staticmethod
+    def _combine_usage(*usages: dict | None) -> dict | None:
+        present = [usage for usage in usages if usage]
+        if not present:
+            return None
+        return {
+            "prompt_tokens": sum(int(item.get("prompt_tokens", 0) or 0) for item in present),
+            "completion_tokens": sum(int(item.get("completion_tokens", 0) or 0) for item in present),
+            "total_tokens": sum(int(item.get("total_tokens", 0) or 0) for item in present),
+            "source": "gemini",
+        }
+
+    def _structured(self, prompt: str, schema: type):
+        config_kwargs = {
+            "system_instruction": (
+                "You are the decision planner for a question-grading agent. "
+                "Choose exactly one allowed action from the current state. "
+                "Never claim a grade exists unless the state contains one."
+            ),
+            "temperature": self.settings.llm_temperature,
+            "response_mime_type": "application/json",
+            "response_schema": schema,
+        }
+        if self.settings.llm_max_output_tokens:
+            config_kwargs["max_output_tokens"] = self.settings.llm_max_output_tokens
+        response = self.client.models.generate_content(
+            model=self.settings.gemini_model,
+            contents=prompt,
+            config=types.GenerateContentConfig(**config_kwargs),
+        )
+        parsed = getattr(response, "parsed", None)
+        if parsed is None:
+            parsed = schema.model_validate_json(response.text)
+        elif not isinstance(parsed, schema):
+            parsed = schema.model_validate(parsed)
+        return parsed, self._usage(response)
+
+    def plan_agent_action(self, context: str) -> tuple[AgentDecision, dict | None]:
+        prompt = f"""Current grading-agent state:
+{context}
+
+Select one action: retrieve_context, grade_answer, verify_grade, request_clarification, or finish.
+Retrieve only when evidence would materially help; finish only when the current grade is safe."""
+        return self._structured(prompt, AgentDecision)
+
+    def verify_grade(self, context: str) -> tuple[GradeVerification, dict | None]:
+        prompt = f"""Independently verify the proposed grade in this grading-agent state:
+{context}
+
+Check the question, model answer, student answer, and available evidence. Return pass/fail,
+specific issues, and a suggested next step. Do not change the grade yourself."""
+        return self._structured(prompt, GradeVerification)
+
     def _run_model_selected_tool(
         self,
         question_number: str,
         question_text: str,
         model_answer: str,
         max_marks: float,
-    ) -> str | None:
+    ) -> tuple[str | None, dict | None]:
         if not self.settings.llm_tool_calling_enabled:
-            return None
+            return None, None
 
         response = self.client.models.generate_content(
             model=self.settings.gemini_model,
@@ -53,7 +125,7 @@ class GeminiProvider:
         )
         function_call = self._extract_function_call(response)
         if not function_call:
-            return None
+            return None, self._usage(response)
 
         name, args = function_call
         tool_result = execute_grading_tool(
@@ -64,7 +136,7 @@ class GeminiProvider:
             model_answer=model_answer,
             max_marks=max_marks,
         )
-        return f"Gemini tool call {name} returned: {tool_result}"
+        return f"Gemini tool call {name} returned: {tool_result}", self._usage(response)
 
     def grade_answer(
         self,
@@ -85,7 +157,7 @@ class GeminiProvider:
         if self.settings.llm_max_output_tokens:
             config_kwargs["max_output_tokens"] = self.settings.llm_max_output_tokens
 
-        tool_context = self._run_model_selected_tool(
+        tool_context, tool_usage = self._run_model_selected_tool(
             question_number,
             question_text,
             model_answer,
@@ -107,6 +179,7 @@ class GeminiProvider:
             ),
             config=types.GenerateContentConfig(**config_kwargs),
         )
+        self._last_usage = self._combine_usage(tool_usage, self._usage(response))
 
         parsed = getattr(response, "parsed", None)
         if isinstance(parsed, GradeEvaluation):

@@ -19,6 +19,10 @@ class QuestionGrade(BaseModel):
     max_marks: float
     feedback: str
     retrieved_chunks: list[dict] = Field(default_factory=list)
+    status: str = "completed"
+    manual_review_reason: str | None = None
+    trajectory: list[dict] = Field(default_factory=list)
+    token_usage: dict = Field(default_factory=dict)
 
 
 class StudentGradeResult(BaseModel):

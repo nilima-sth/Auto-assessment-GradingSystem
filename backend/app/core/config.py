@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     rag_chunk_size: int = Field(default=700, alias="RAG_CHUNK_SIZE")
     rag_chunk_overlap: int = Field(default=100, alias="RAG_CHUNK_OVERLAP")
     rag_top_k: int = Field(default=4, alias="RAG_TOP_K")
+    agent_max_iterations: int = Field(default=5, alias="AGENT_MAX_ITERATIONS")
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

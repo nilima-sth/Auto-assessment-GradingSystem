@@ -10,11 +10,12 @@ def retrieve_rag_context(
     question_text: str,
     student_answer: str,
     top_k: int | None = None,
+    query: str | None = None,
 ) -> RagContext:
     settings = get_settings()
     limit = top_k or settings.rag_top_k
-    query = f"{question_text}\n{student_answer}".strip()
-    query_embedding = get_embedder().encode([query])[0].tolist()
+    retrieval_query = (query or f"{question_text}\n{student_answer}").strip()
+    query_embedding = get_embedder().encode([retrieval_query])[0].tolist()
 
     chunks: list[RetrievedChunk] = []
     try:
