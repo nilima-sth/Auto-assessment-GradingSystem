@@ -1,0 +1,61 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_PATH: /app/data/grades.db
+      POPPLER_PATH: ${POPPLER_PATH:-}
+      TROCR_MODEL: ${TROCR_MODEL:-microsoft/trocr-base-handwritten}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      ANSWER_CHUNK_SIZE: ${ANSWER_CHUNK_SIZE:-220}
+      ANSWER_CHUNK_OVERLAP: ${ANSWER_CHUNK_OVERLAP:-80}
+      SIMILARITY_THRESHOLD: ${SIMILARITY_THRESHOLD:-0.6}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.2}
+      LLM_TOP_P: ${LLM_TOP_P:-0.9}
+      LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-}
+      LLM_RETRY_ATTEMPTS: ${LLM_RETRY_ATTEMPTS:-3}
+      LLM_RETRY_BASE_DELAY: ${LLM_RETRY_BASE_DELAY:-0.5}
+      LLM_TOOL_CALLING_ENABLED: ${LLM_TOOL_CALLING_ENABLED:-true}
+      ENABLE_VLLM_FALLBACK: ${ENABLE_VLLM_FALLBACK:-true}
+      VLLM_BASE_URL: http://vllm:8000/v1
+      VLLM_MODEL: ${VLLM_MODEL:-TinyLlama/TinyLlama-1.1B-Chat-v1.0}
+      VLLM_TIMEOUT_SECONDS: ${VLLM_TIMEOUT_SECONDS:-60}
+      RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-10}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      OCR_CONCURRENCY: ${OCR_CONCURRENCY:-1}
+      LLM_CONCURRENCY: ${LLM_CONCURRENCY:-3}
+      CHROMA_PATH: /app/data/chroma
+    volumes:
+      - app-data:/app/data
+    ports:
+      - "8000:8000"
+    depends_on:
+      - vllm
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+
+  vllm:
+    image: vllm/vllm-openai:latest
+    ipc: host
+    command: ["--model", "${VLLM_MODEL:-TinyLlama/TinyLlama-1.1B-Chat-v1.0}", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    ports:
+      - "8001:8000"
+
+volumes:
+  app-data:
+  hf-cache:
