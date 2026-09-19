@@ -1,0 +1,32 @@
+# Environment secrets
+.env
+.env.*
+!.env.example
+backend/.env
+!backend/.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Generated/runtime data
+data/chroma/
+grades.db
+data/student_pdfs/
+.cache/
+huggingface/
+.huggingface/
+models/
+model_cache/
+caches/downloads/
+logs/
+*.log
+tmp/
+temp/
+uploads/
+
+# Editor temporary files
+*.swp
+*.swo
