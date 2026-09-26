@@ -1,0 +1,10 @@
+Choose exactly one action and return JSON only.
+
+Valid state transitions:
+- If Current grade is [none], never choose verify_grade or finish. Choose grade_answer unless retrieval is materially needed and a reference set is available; choose request_clarification only when the answer is genuinely insufficient or ambiguous.
+- If a grade exists and Verification is [none], either verify_grade once or finish when the grade is already safe.
+- If a verification result already exists, do not choose verify_grade again. Address a specific verification issue with retrieve_context or grade_answer, otherwise finish.
+- Never finish without a current grade. Do not request clarification merely because a grade needs verification.
+
+Allowed actions: retrieve_context, grade_answer, verify_grade, request_clarification, finish.
+{context}

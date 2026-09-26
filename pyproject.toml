@@ -1,0 +1,39 @@
+[project]
+name = "week16-agentic-grading-system"
+version = "0.1.0"
+description = "AI-assisted answer-sheet grading system"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "chromadb",
+    "fastapi==0.115.6",
+    "google-genai==2.22.0",
+    "httpx",
+    "Pillow",
+    "protobuf>=6.33.5,<8",
+    "pydantic",
+    "pydantic-settings",
+    "PyPDF2",
+    "pdf2image",
+    "pytest",
+    "requests",
+    "scikit-learn",
+    "sentence-transformers",
+    "sentencepiece",
+    "streamlit==1.50.0",
+    "tiktoken",
+    "torch",
+    "transformers<5",
+    "python-multipart",
+    "uvicorn",
+    "mlflow>=3.16.1",
+    "evidently[llm]>=0.7.23",
+    "pyarrow<21",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

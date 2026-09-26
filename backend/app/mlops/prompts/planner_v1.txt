@@ -1,0 +1,2 @@
+Choose one action (retrieve_context, grade_answer, verify_grade, request_clarification, finish) for this state. Return JSON only.
+{context}

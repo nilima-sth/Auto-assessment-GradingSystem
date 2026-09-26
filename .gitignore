@@ -7,13 +7,20 @@ backend/.env
 
 # Python
 .venv/
+.python-version
 __pycache__/
 *.py[cod]
 .pytest_cache/
 
 # Generated/runtime data
+mlruns/
+mlartifacts/
+mlflow.db
 data/chroma/
 grades.db
+*.db-journal
+*.db-shm
+*.db-wal
 data/student_pdfs/
 .cache/
 huggingface/

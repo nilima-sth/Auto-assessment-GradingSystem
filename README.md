@@ -1,298 +1,189 @@
-**AI-Assisted Answer Sheet Grading System**
+# AI-Assisted Answer Sheet Grading System
 
- **Overview**
+This FastAPI and Streamlit project grades scanned answer sheets using OCR, semantic answer mapping, optional Chroma-backed reference retrieval, and structured LLM grading. Week 17 adds a measured agent-evaluation workflow around the existing Week 16 agent loop: versioned prompts, MLflow experiments, fixed golden regression cases, Evidently reports, and local Ollama judging.
 
-This project is a production-oriented FastAPI and Streamlit application for automatically grading scanned student answer sheets. It refactors the original notebook prototype into a backend API, adds Gemini structured grading, OCR, semantic answer routing, genuine RAG with ChromaDB, reliability features, and a simple teacher-facing web UI.
+## Project progression
 
- **Features**
-- Upload exam/model-answer files and student answer-sheet PDFs.
-- Extract handwritten answers with TrOCR.
-- Map OCR answer chunks to questions with all-MiniLM-L6-v2 sentence embeddings.
-- Ingest optional rubric/reference documents into ChromaDB.
-- Retrieve question-aware RAG context during grading.
-- Grade answers with Gemini using prompt engineering, configured temperature / top_p, function calling, and Pydantic-validated structured output.
-- Retry external LLM calls and fall back from Gemini to a vLLM local model endpoint when appropriate.
-- Rate limit expensive API endpoints.
-- Process batch grading through asynchronous API handlers with bounded OCR and LLM concurrency.
-- Persist grading records in SQLite.
-- Provide a Streamlit frontend for teacher workflows.
-- Run locally or through Docker Compose.
+| Stage | Delivered capability |
+| --- | --- |
+| Week 15 | OCR, semantic answer mapping, structured grading, SQLite persistence, FastAPI, and Streamlit. |
+| Week 16 | Question-level agent loop with retrieve, grade, verify, clarify, and finish actions; retries, fallback integration, and safe trajectory state. |
+| Week 17 | `uv`-locked environment; V1/V2/V3 prompt/config experiments in MLflow; fixed six-case regression evaluation with Evidently and local Qwen judge. |
+
+The [architecture document](docs/architecture.md) describes the application flow. Semantic mapping assigns OCR segments to questions; RAG separately retrieves official/reference evidence to support grading.
 
 ## Architecture
 
-The system architecture and Week 16 agentic loop are documented here:
+```text
+Exam/model answer + optional references ──> extraction ──> Chroma RAG corpus
+Student PDF ──> TrOCR ──> semantic answer-to-question mapping
+Question + mapped answer + retrieved evidence ──> Week 16 agent loop
+                                             └──> structured GradeEvaluation ──> SQLite
 
-[View Architecture Diagram](docs/architecture.md)
- **Current AI Pipeline**
+Week 17: versioned agent configuration ──> MLflow runs/traces
+         fixed golden cases + candidate output ──> Evidently LLM judge + HTML reports
+```
 
- exam/model answer/reference docs
+The agent trace records explicit actions, arguments, result summaries, tool errors, iterations, terminal status/reason, and final grades. It does not record inferred hidden model reasoning.
 
-  → text extraction
+## Environment and clean-clone setup
 
-  → RAG chunking
+Requirements: Python 3.12, [uv](https://docs.astral.sh/uv/), Poppler for PDF conversion, and (for live Week 17 commands) a running local Ollama installation.
 
-  → all-MiniLM-L6-v2 embeddings
+```bash
+# Install uv if it is not already installed; see the uv link above.
+uv sync
 
-  → persistent ChromaDB
+# Ubuntu/Debian only, if Poppler is not on PATH.
+sudo apt-get install poppler-utils
+```
 
-  → student PDF OCR with TrOCR
+`pyproject.toml` and `uv.lock` are the canonical environment. `uv sync` creates the project environment; no requirements-file install is needed for local work. A clean temporary source copy was verified with `uv sync --frozen` and `uv run pytest -q` (44 passed).
 
-  → semantic answer-to-question mapping
+Create local configuration without committing it:
 
-  → question-aware RAG retrieval
+```bash
+cp backend/.env.example backend/.env
+```
 
-  → Gemini structured grading with function calling
+Important variables in this project:
 
-  → retry and Gemini-to-vLLM fallback
+```dotenv
+LLM_PROVIDER=gemini             # gemini, vllm, or ollama
+GEMINI_API_KEY=                 # required only for Gemini execution
+GEMINI_MODEL=gemini-3.6-flash
+OLLAMA_MODEL=qwen2.5:7b         # supplied at command time for Week 17 runs
+VLLM_BASE_URL=http://localhost:8001/v1
+VLLM_MODEL=TinyLlama/TinyLlama-1.1B-Chat-v1.0
+CHROMA_PATH=../data/chroma
+DATABASE_PATH=../grades.db
+```
 
-  → GradeEvaluation validation
+`backend/.env` is ignored. Do not place API keys in source files, README, Docker Compose files, or reports.
 
-  → SQLite persistence
+## Run the application
 
+Backend and health check:
 
+```bash
+uv run uvicorn backend.app.main:app --reload
+curl http://127.0.0.1:8000/api/health
+```
 
- **Difference Between Semantic Mapping and RAG**
+Frontend, in another terminal:
 
- Semantic mapping is used to assign OCR text from a student answer sheet to likely exam questions. It does not add outside knowledge.
+```bash
+BACKEND_URL=http://127.0.0.1:8000 uv run streamlit run frontend/app.py
+```
 
- RAG is used separately for grading support. The official exam/model answers and optional rubric/reference documents are chunked, embedded, stored in ChromaDB, retrieved by reference_set_id, and passed to the LLM as supporting context.
- **Technology Stack**
-- FastAPI, Pydantic, Uvicorn
-- Streamlit
-- Gemini through the Google Gen AI SDK
-- vLLM through its OpenAI-compatible HTTP API
-- TrOCR through Transformers/PyTorch
-- SentenceTransformers and scikit-learn
-- ChromaDB persistent vector storage
-- SQLite
-- Docker and Docker Compose
- **Project Structure**
+The main API routes are `GET /api/health`, `POST /api/rag/ingest`, and `POST /api/grading/evaluate`. Docker Compose remains available for the original application stack with `docker compose up --build`; its Dockerfiles retain their existing requirements-file setup, while local Week 17 work uses uv.
 
-  backend/app/api/          FastAPI routes
+## Local Ollama for Week 17
 
-  backend/app/core/         config and rate limiting
+Pull and confirm the tested local model:
 
-  backend/app/database/     SQLite helpers
+```bash
+ollama pull qwen2.5:7b
+ollama list
+```
 
-  backend/app/llm/          Gemini, vLLM, Ollama, retry, fallback, tools
+The recorded experiments used `qwen2.5:7b` through the existing Ollama CLI provider. It returns structured JSON for planner, verification, and grading calls. The local provider does not expose reliable token counts, so those metrics remain unavailable. Live reproduction requires Ollama to be running and the model to be available locally; it was verified for the recorded runs but is not rerun by setup.
 
-  backend/app/rag/          ingestion, vector store, retrieval
+## Test and local observability commands
 
-  backend/app/services/     OCR, parsing, embeddings, grading workflow
+```bash
+uv lock --check
+uv run python -m compileall backend frontend tests
+uv run pytest -q
 
-  frontend/app.py           Streamlit teacher UI
+# Local MLflow metadata: ignored SQLite database; artifacts: ignored mlruns/.
+uv run mlflow ui --backend-store-uri sqlite:///mlflow.db
+```
 
-  docs/architecture.md      architecture diagram
+The current suite has 44 tests. The MLflow UI and `/api/health` were both started and checked locally during final audit.
 
-  docs/week16-compliance-audit.md  Week 16 requirement scorecard
+## Versioned MLflow experiments
 
-  tests/                    pytest suite
+Configurations live in `backend/app/mlops/configs/`; prompts are in `backend/app/mlops/prompts/`. V1 preserves the Week 16 system prompt, V2 changes only planner state guards, and V3 retains V2 planning while adding exact-match grading calibration.
 
+Run deterministic V1 harness tracking:
 
- **Environment Variables**
+```bash
+uv run python -m backend.app.mlops.experiments --config v1
+```
 
- Copy the example file and fill local values:
+Run a live local configuration (repeat with `v2` or `v3`):
 
- cp backend/.env.example backend/.env
-
-
-
- Set Gemini key in backend/.env:
-
- GEMINI_API_KEY=
-
-
- Important variables:
-
-  LLM_PROVIDER=gemini
-
-  GEMINI_MODEL=gemini-3.6-flash
-
-  LLM_TEMPERATURE=0.2
-
-  LLM_TOP_P=0.9
-
-  LLM_RETRY_ATTEMPTS=3
-
-  ENABLE_VLLM_FALLBACK=true
-
-  VLLM_BASE_URL=http://localhost:8001/v1
-
-  VLLM_MODEL=TinyLlama/TinyLlama-1.1B-Chat-v1.0
-
-  RATE_LIMIT_REQUESTS=10
-
-  RATE_LIMIT_WINDOW_SECONDS=60
-
-  OCR_CONCURRENCY=1
-
-  LLM_CONCURRENCY=3
-
-  CHROMA_PATH=../data/chroma
-
-
- **Local Setup**
-
- python3 -m venv .venv
-
-  source .venv/bin/activate
-
-  pip install -r backend/requirements.txt
-
-
- Install Poppler for PDF conversion. On Ubuntu/Debian:
-
- sudo apt-get install poppler-utils
-
- If Poppler is not on PATH, set POPPLER_PATH in backend/.env.
-
-**Gemini API Key Setup**
-1. Copy backend/.env.example to backend/.env.
-2. Set `GEMINI_API_KEY` to the local key value.
-3. Keep LLM_PROVIDER=gemini.
-4. Use the configured model in GEMINI_MODEL.
-
- The real key must stay local and must not appear in README, tests, Docker Compose, or source code.
- **Running Backend**
-
- .venv/bin/uvicorn backend.app.main:app --reload
-
-  Health check: curl http://127.0.0.1:8000/api/health
-
-
-**Running Streamlit Frontend**
-
- BACKEND_URL=http://127.0.0.1:8000 .venv/bin/streamlit run frontend/app.py
-
- Open the Streamlit URL, upload the exam/model-answer file, optionally ingest rubric/reference files, then upload student answer-sheet PDFs and start grading.
- **Running vLLM**
-
- The backend expects vLLM through its OpenAI-compatible endpoint.
-
- python -m vllm.entrypoints.openai.api_server \
-
-    --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
-
-    --host 0.0.0.0 \
-
-    --port 8001
-
-
- Full local vLLM inference requires suitable GPU/VRAM and model download time. This repository implements the integration and Docker Compose service; do not claim successful vLLM runtime inference unless that service has actually generated a response in your environment.
-
-**Running Tests**
-
- .venv/bin/python -m compileall backend frontend tests
-
-  .venv/bin/python -m pytest -q
-
-  **Docker**
-
- docker compose up --build
-
-
- Compose starts:
-- backend on port 8000
-- frontend on port 8501
-- vllm on host port 8001
-- persistent app and Hugging Face cache volumes
-
- Docker Compose uses shell variables or a root .env file for substitution. It does not read backend/.env, because docker compose config expands env_file values and can expose secrets in terminal output.
-
-**API Endpoints**
-
- GET  /api/health
-
-  POST /api/rag/ingest
-
-  POST /api/grading/evaluate
-
- POST /api/rag/ingest accepts an exam/model-answer file and optional reference files, then returns a reference_set_id.
-
- POST /api/grading/evaluate accepts an exam/model-answer file, one or more student PDFs, and optional reference_set_id.
-
-**Reliability**
-- Retry: external LLM calls are retried with bounded exponential backoff.
-- Fallback: Gemini is primary; after retry failure the provider falls back to vLLM for retryable external errors.
-- Rate limiting: expensive endpoints return HTTP 429 after the configured request limit.
-- Graceful errors: invalid uploads return 400, dependency failures return 503 where applicable, and unexpected failures return safe 500 responses without exposing secrets.
- **Performance**
-- Async API handlers keep expensive requests from blocking the event loop.
-- OCR and semantic mapping are offloaded to worker threads with bounded concurrency.
-- LLM grading is also bounded to avoid unbounded simultaneous provider calls.
-- TrOCR and SentenceTransformer models are cached/reused by service loaders.
-- ChromaDB retrieval limits context with RAG_TOP_K.
-
-- **ONNX Decision**
-
- ONNX was considered but is not necessary for this implementation:
-- Hosted Gemini cannot be converted to ONNX by this application.
-- Local generative LLM inference is optimized through vLLM, including PagedAttention and request batching.
-- TrOCR remains a Transformers/PyTorch model in this project.
-- SentenceTransformer inference is already reused and bounded.
-
- Therefore ONNX conversion is documented as not applicable for the final assignment implementation.
-
-
-**Deployment Instructions**
-
- For local Docker deployment:
-
- cp backend/.env.example backend/.env
-
-  # fill backend/.env for direct backend runs
-
-  # for Compose, also export GEMINI_API_KEY or create an ignored root .env
-
-  docker compose up --build
-
-
-
- For a VPS/server deployment:
-1. Install Docker and Docker Compose.
-2. Copy the project to the server.
-3. Create backend/.env from backend/.env.example.
-4. Set GEMINI_API_KEY, model names, paths, and limits.
-5. Ensure the server has GPU/VRAM if vLLM will be used for real local inference.
-6. Run docker compose up --build -d.
-7. Put a reverse proxy such as Nginx/Caddy in front of ports 8000 and 8501 if exposing publicly.
-
- Cloud deployment can use the same container layout, but no cloud-specific deployment is required for this submission.
-
-**Limitations**
-- TrOCR model weights must be downloaded/cached before first full OCR runtime verification.
-- vLLM runtime verification requires sufficient GPU/VRAM and model download time.
-- In-process rate limiting is suitable for a single backend process; a distributed deployment should use shared storage such as Redis.
-- OCR quality depends on scan clarity and handwriting quality.
-- Existing local files such as grades.db and data/student_pdfs/s1.pdf may contain non-synthetic historical data and are ignored by Git.
-# Week 16 Work
-
-## Context Engineering Technique
-
-The planner is given a small context pack on each pass: the question, reference answer, mapped student answer, any flagged OCR text, up to four retrieved chunks, the current grade or verification result, and a short list of recent actions. The full trajectory stays in `AgentState`, so the whole history is not sent back to the model every time.
-
-## Agentic Pattern
-
-I used one agent for each question. It chooses one of five actions: `retrieve_context`, `grade_answer`, `verify_grade`, `request_clarification`, or `finish`. Python runs the selected action, updates the question state, and asks the planner what to do next. The loop ends when the agent finishes, asks for review, hits a tool error, or reaches `AGENT_MAX_ITERATIONS` (default 5). There is no forced retrieve-then-grade sequence.
-
-The Week 15 parts that already worked, such as uploads, parsing, OCR, answer mapping, and database access, are still used. Week 16 changes only the per-question decision step that used to retrieve once and grade once.
-
-## Evaluation Harness
-
-I kept the evaluation code small and local in `backend/app/evaluation/`. It runs six scripted cases through `run_question_agent` and records the final outcome, selected actions, path length, failures, and token information. The results are in `docs/evaluation-results.md`. These cases do not call an external model, so their LLM token count is zero.
-
-## Skill vs Agent
-
-In this project, a skill is one of the fixed capabilities: OCR, answer mapping, retrieval, mark validation, or database persistence. The agent is the part that decides which capability to use next after seeing the current result. It cannot write to SQLite or call arbitrary Python functions.
-
-## Token and Cost Accounting
-
-`AgentState.token_usage` keeps input, output, and total token counts for a question. Gemini usage metadata and the OpenAI-compatible `usage` object from vLLM are read when they are returned, including grading retries and fallback calls. Each trajectory entry keeps the usage for that action. Ollama does not expose matching counts here, so those values are left unavailable. I have not added a dollar cost because there was no live provider run or price data to support one.
-
-## Failure Injection Test
-
-For `retrieval-timeout`, the harness makes the retrieval function raise a `TimeoutError`. The agent records the failed call and returns `manual_review`; it does not invent evidence, call grading, or insert a final grade row. I classified this as a soft failure because the problem was contained.
-
-## Tool vs Agent Boundary
-
-The model only selects from the small action list and supplies checked arguments. Python runs the tools and handles errors, limits, and terminal states. The application, not the model, writes grades to SQLite. A question sent for manual review keeps that status and does not get an artificial final grade row.
+```bash
+LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b \
+  uv run python -m backend.app.mlops.experiments --config v3 --execution-mode ollama-live
+```
+
+The experiment runner logs parameters that the app actually consumes, aggregate metrics, full safe traces, and selected representative traces. MLflow run IDs and the full methodology are in [Phase 2 notes](docs/week17-phase2-experiments.md).
+
+| Version | Completion | Tool correctness | Avg. iterations | Latency | Errors |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| V1 | 0.333 | 0.941 | 2.83 | 40.85 s | 2 |
+| V2 | 0.167 | 1.000 | 3.50 | 73.65 s | 2 |
+| V3 | 0.333 | 1.000 | 1.83 | 13.73 s | 0 |
+
+Actual experiment story: V1 exposed invalid verification order, repeated verification, maximum-iteration exits, and poor exact-match calibration. V2 added planner-state guards, improving tool correctness but worsening completion and latency—a genuine regression. V3 kept those guards and added targeted exact-match calibration; it eliminated recorded provider/tool errors and reduced iterations and latency. It is not a claim of general grading quality.
+
+## Fixed regression evaluation
+
+The six approved, project-owned cases are in [`backend/app/mlops/golden/regression_v1.json`](backend/app/mlops/golden/regression_v1.json). They cover exact, partial, incorrect, retrieval, ambiguous-OCR, and loop-guard behavior; they are not generated V3 outputs.
+
+```bash
+LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b \
+  uv run python -m backend.app.mlops.regression --config all
+```
+
+Each version gets a separate MLflow run. Evidently 0.7.23 uses local Qwen through Ollama for two checks: `reference_correctness` and `workflow_adherence`. A separate project-contract sanity check compares expected status, actions, call limit, and marks. Any judge/contract disagreement is retained for human review; promotion is interpretation-only.
+
+| Version | Passed | pct_tests_passed | Regression MLflow run |
+| --- | ---: | ---: | --- |
+| V1 | 1/6 | 16.67% | `a9eba64e6b884ec8952056509f6bb4b3` |
+| V2 | 1/6 | 16.67% | `4ad434109ce94b3c9dc396501f023b50` |
+| V3 | 2/6 | 33.33% | `438a8c2460434881903ffe2241926a34` |
+
+These fresh runs also log `pct_tests_passed` with the same value as the preserved `regression_pass_percentage` metric. V3 improved the fixed set but still fails partial-credit, incorrect-answer, retrieval, and ambiguous-OCR behavior. Review the recorded candidate/reference, verdicts, explanations, and sanity results before any release decision. See [Phase 3 regression notes](docs/week17-phase3-regression.md).
+
+## Submission evidence and repository layout
+
+The committed evidence should include the lockfile, prompt/config files, golden dataset, tests, documentation, machine-readable Phase 2 comparison, and generated Evidently reports. Runtime databases, MLflow artifact directories, Chroma data, model caches, `.venv`, and `backend/.env` are intentionally ignored.
+
+```text
+backend/app/
+  agent/                 # Week 16 loop and state schemas
+  evaluation/            # deterministic harness
+  mlops/
+    configs/             # v1, v2, v3
+    golden/              # fixed regression_v1.json
+    experiments.py       # MLflow experiment runner
+    regression.py        # Evidently/golden regression runner
+docs/
+  week17-phase0-audit.md
+  week17-phase1-baseline.md
+  week17-phase2-experiments.md
+  week17-phase2-comparison.json
+  week17-phase3-regression.md
+  week17-final-audit.md
+reports/evidently/
+  v1_regression.html
+  v2_regression.html
+  v3_regression.html
+tests/
+pyproject.toml
+uv.lock
+README.md
+```
+
+## Known limitations and optional work
+
+- V3 has only a 2/6 fixed regression pass rate; it is not fully successful.
+- The Phase 2 live harness uses deterministic retrieval and has several indistinguishable inputs that expect different action paths; those metrics are useful operational signals, not a general quality benchmark.
+- OCR quality depends on scan quality and handwriting; TrOCR weights download on first use. vLLM integration needs compatible hardware and model availability.
+- Rate limiting is in-process and is suitable for a single backend process.
+- **Airflow is optional bonus work and is not implemented.**
+
+For the requirement-by-requirement final audit, hygiene review, and manual submission instructions, see [docs/week17-final-audit.md](docs/week17-final-audit.md).

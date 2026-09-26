@@ -1,0 +1,49 @@
+{
+  "methodology": {
+    "provider": "ollama",
+    "model": "qwen2.5:7b",
+    "execution_mode": "ollama-live",
+    "evaluation_cases": 6,
+    "retrieval": "deterministic harness retrieval; planner and grader calls are live Ollama calls",
+    "token_usage": "unavailable from the existing Ollama CLI provider"
+  },
+  "runs": [
+    {
+      "version": "v1",
+      "run_id": "2a00595ef67642cb93e63ad01a59f0ea",
+      "task_completion_rate": 0.3333333333333333,
+      "tool_call_correctness": 0.9411764705882353,
+      "average_agent_iterations": 2.8333333333333335,
+      "average_tool_calls": 2.8333333333333335,
+      "latency_seconds": 40.847166912997636,
+      "error_count": 2,
+      "hard_failures": 4,
+      "soft_failures": 1
+    },
+    {
+      "version": "v2",
+      "run_id": "b665af9936f446c98186c944e980dfc4",
+      "task_completion_rate": 0.16666666666666666,
+      "tool_call_correctness": 1.0,
+      "average_agent_iterations": 3.5,
+      "average_tool_calls": 3.5,
+      "latency_seconds": 73.64724879099958,
+      "error_count": 2,
+      "hard_failures": 4,
+      "soft_failures": 1
+    },
+    {
+      "version": "v3",
+      "run_id": "f188ccc5a3394912abf5bb9bd0c69447",
+      "task_completion_rate": 0.3333333333333333,
+      "tool_call_correctness": 1.0,
+      "average_agent_iterations": 1.8333333333333333,
+      "average_tool_calls": 1.8333333333333333,
+      "latency_seconds": 13.725807042999804,
+      "error_count": 0,
+      "hard_failures": 0,
+      "soft_failures": 1
+    }
+  ],
+  "selection": "V3 is operationally preferable in this limited harness because it matches V1 task completion while eliminating provider/tool errors and reducing latency and iterations. This is not a claim of general grading quality."
+}

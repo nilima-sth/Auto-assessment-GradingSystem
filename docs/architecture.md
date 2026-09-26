@@ -13,7 +13,7 @@ flowchart TD
     L --> D{Validated action}
     D -->|retrieve_context| R[RAG retrieval tool]
     D -->|grade_answer| G[Existing grading provider]
-    D -->|verify_grade| V[Verification call]
+    D -->|verify_grade| V[Independent verification provider]
     D -->|request_clarification| H[Manual review]
     D -->|finish| F[Finalized question result]
     R --> A

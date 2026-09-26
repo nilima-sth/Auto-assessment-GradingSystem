@@ -8,12 +8,33 @@ from backend.app.agent.schemas import AgentDecision, GradeVerification
 
 
 class OllamaProvider:
+    def __init__(
+        self,
+        *,
+        planner_prompt_template: str | None = None,
+        system_instruction: str = SYSTEM_INSTRUCTION,
+    ) -> None:
+        self.planner_prompt_template = planner_prompt_template or (
+            "Choose one action (retrieve_context, grade_answer, verify_grade, "
+            "request_clarification, finish) for this state. Return JSON only.\n{context}"
+        )
+        self.system_instruction = system_instruction
+
     def consume_last_usage(self) -> dict | None:
         return None
+
     def _json_prompt(self, prompt: str) -> dict:
         settings = get_settings()
         proc = subprocess.run(
-            ["ollama", "run", settings.ollama_model],
+            [
+                "ollama",
+                "run",
+                settings.ollama_model,
+                "--format",
+                "json",
+                "--nowordwrap",
+                "--hidethinking",
+            ],
             input=prompt.encode("utf-8"),
             capture_output=True,
             check=False,
@@ -22,13 +43,13 @@ class OllamaProvider:
             error = proc.stderr.decode("utf-8", errors="ignore").strip()
             raise RuntimeError(error or f"Ollama exited with code {proc.returncode}")
         raw = proc.stdout.decode("utf-8", errors="ignore").strip()
-        start, end = raw.find("{"), raw.rfind("}")
-        return json.loads(raw[start : end + 1] if start != -1 and end != -1 else raw)
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Ollama returned invalid JSON despite JSON mode.") from exc
 
     def plan_agent_action(self, context: str) -> tuple[AgentDecision, dict | None]:
-        data = self._json_prompt(
-            f"Choose one action (retrieve_context, grade_answer, verify_grade, request_clarification, finish) for this state. Return JSON only.\n{context}"
-        )
+        data = self._json_prompt(self.planner_prompt_template.format(context=context))
         return AgentDecision.model_validate(data), None
 
     def verify_grade(self, context: str) -> tuple[GradeVerification, dict | None]:
@@ -46,38 +67,18 @@ class OllamaProvider:
         max_marks: float,
         retrieved_context: str | None = None,
     ) -> GradeEvaluation:
-        prompt = f"""{SYSTEM_INSTRUCTION}
+        prompt = f"""{self.system_instruction}
 
 {build_grading_user_content(question_number, question_text, model_answer, student_answer, max_marks, retrieved_context)}
 
 Respond as strict JSON with keys "question_number", "awarded_marks", "max_marks", and "feedback", nothing else.
 JSON:"""
 
-        settings = get_settings()
-        proc = subprocess.run(
-            ["ollama", "run", settings.ollama_model],
-            input=prompt.encode("utf-8"),
-            capture_output=True,
-            check=False,
-        )
-        if proc.returncode != 0:
-            error = proc.stderr.decode("utf-8", errors="ignore").strip()
-            raise RuntimeError(error or f"Ollama exited with code {proc.returncode}")
-
-        raw = proc.stdout.decode("utf-8", errors="ignore").strip()
         try:
-            start = raw.find("{")
-            end = raw.rfind("}")
-            payload = raw[start : end + 1] if start != -1 and end != -1 else raw
-            data = json.loads(payload)
+            data = self._json_prompt(prompt)
             evaluation = GradeEvaluation.model_validate(data)
-        except Exception:
-            evaluation = GradeEvaluation(
-                question_number=question_number,
-                awarded_marks=0.0,
-                max_marks=max_marks,
-                feedback="Unclear - manual review required (invalid LLM JSON).",
-            )
+        except Exception as exc:
+            raise RuntimeError("Ollama returned invalid grading JSON.") from exc
 
         return GradeEvaluation(
             question_number=question_number,

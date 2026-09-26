@@ -1,0 +1,9 @@
+{
+  "version": "v3",
+  "description": "Targeted grading calibration after V2 live traces under-awarded an exact model-answer match.",
+  "system_prompt_id": "grading-exact-match-calibration-v3",
+  "system_prompt_path": "backend/app/mlops/prompts/grading_system_v3.txt",
+  "planner_prompt_id": "planner-state-guards-v2",
+  "planner_prompt_path": "backend/app/mlops/prompts/planner_v2.txt",
+  "evaluation_mode": "deterministic_scripted_harness"
+}

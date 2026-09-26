@@ -1,0 +1,9 @@
+{
+  "version": "v2",
+  "description": "Targeted planner-state-transition revision after V1 live traces showed invalid and repeated verification.",
+  "system_prompt_id": "grading-system-v1",
+  "system_prompt_path": "backend/app/mlops/prompts/grading_system_v1.txt",
+  "planner_prompt_id": "planner-state-guards-v2",
+  "planner_prompt_path": "backend/app/mlops/prompts/planner_v2.txt",
+  "evaluation_mode": "deterministic_scripted_harness"
+}

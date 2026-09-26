@@ -1,0 +1,92 @@
+{
+  "dataset_id": "week17-regression-v1",
+  "method": "Fixed, hand-reviewed cases derived from the Week 16 evaluation domain and grading contract; they are not outputs from a V3 run.",
+  "cases": [
+    {
+      "case_id": "exact-match-indexing",
+      "source": "Week 16 deterministic direct-grade case",
+      "question_number": "Q1",
+      "question_text": "Explain the purpose of a database index.",
+      "model_answer": "A database index speeds up lookup of rows by maintaining a searchable data structure.",
+      "student_answer": "A database index speeds up lookup of rows by maintaining a searchable data structure.",
+      "max_marks": 5,
+      "expected_status": "completed",
+      "expected_awarded_marks": 5,
+      "required_actions": ["grade_answer"],
+      "reference_response": "Complete the grading workflow. Award 5/5 because the student answer exactly preserves the model answer's lookup-speed explanation. Feedback should confirm the correct purpose.",
+      "retrieval_evidence": "Indexes speed lookup by maintaining a searchable structure over indexed fields."
+    },
+    {
+      "case_id": "partial-indexing",
+      "source": "Week 16 grading contract: partial credit",
+      "question_number": "Q2",
+      "question_text": "Explain the purpose of a database index.",
+      "model_answer": "A database index speeds up lookup of rows by maintaining a searchable data structure.",
+      "student_answer": "An index makes searching for records faster.",
+      "max_marks": 5,
+      "expected_status": "completed",
+      "expected_awarded_marks": 3,
+      "required_actions": ["grade_answer"],
+      "reference_response": "Complete the grading workflow. Award partial credit of 3/5: the student identifies faster searching but omits the searchable data-structure explanation. Feedback must name that missing detail.",
+      "retrieval_evidence": "Indexes speed lookup by maintaining a searchable structure over indexed fields."
+    },
+    {
+      "case_id": "incorrect-indexing",
+      "source": "Week 16 grading contract: incorrect answer",
+      "question_number": "Q3",
+      "question_text": "Explain the purpose of a database index.",
+      "model_answer": "A database index speeds up lookup of rows by maintaining a searchable data structure.",
+      "student_answer": "A database index encrypts every record so that it cannot be read.",
+      "max_marks": 5,
+      "expected_status": "completed",
+      "expected_awarded_marks": 0,
+      "required_actions": ["grade_answer"],
+      "reference_response": "Complete the grading workflow. Award 0/5: encryption is unrelated to an index's lookup purpose. Feedback must identify the contradiction.",
+      "retrieval_evidence": "Indexes speed lookup by maintaining a searchable structure over indexed fields."
+    },
+    {
+      "case_id": "retrieval-evidence-required",
+      "source": "Week 16 deterministic rag-needed case",
+      "question_number": "Q4",
+      "question_text": "According to the supplied reference, what does an index improve?",
+      "model_answer": "The supplied reference says an index improves lookup speed.",
+      "student_answer": "It improves lookup speed.",
+      "max_marks": 5,
+      "expected_status": "completed",
+      "expected_awarded_marks": 5,
+      "required_actions": ["retrieve_context", "grade_answer"],
+      "reference_response": "Retrieve the supplied evidence before grading, then complete the workflow with 5/5. The answer agrees with the reference that indexes improve lookup speed.",
+      "retrieval_evidence": "Reference note: an index improves lookup speed by reducing the rows examined."
+    },
+    {
+      "case_id": "ambiguous-ocr-manual-review",
+      "source": "Week 16 deterministic ambiguous-review case",
+      "question_number": "Q5",
+      "question_text": "Explain the purpose of a database index.",
+      "model_answer": "A database index speeds up lookup of rows by maintaining a searchable data structure.",
+      "student_answer": "",
+      "flagged_ocr_text": "In?ex ... unreadable handwritten response",
+      "max_marks": 5,
+      "expected_status": "manual_review",
+      "expected_awarded_marks": null,
+      "required_actions": ["request_clarification"],
+      "reference_response": "Do not award a grade. Send the case to manual review because the mapped answer is empty and the OCR text is explicitly ambiguous.",
+      "retrieval_evidence": "Indexes speed lookup by maintaining a searchable structure over indexed fields."
+    },
+    {
+      "case_id": "loop-guard-after-grade",
+      "source": "Week 16 verification-replan / Phase 2 loop weakness",
+      "question_number": "Q6",
+      "question_text": "State one benefit of a database index.",
+      "model_answer": "It speeds up lookup of rows.",
+      "student_answer": "It speeds up lookup of rows.",
+      "max_marks": 5,
+      "expected_status": "completed",
+      "expected_awarded_marks": 5,
+      "required_actions": ["grade_answer", "finish"],
+      "max_tool_calls": 3,
+      "reference_response": "Complete with 5/5 after a grade. Do not repeatedly retrieve or verify already sufficient evidence; finish within three non-planner tool calls.",
+      "retrieval_evidence": "Indexes speed lookup by maintaining a searchable structure over indexed fields."
+    }
+  ]
+}

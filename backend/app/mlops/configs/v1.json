@@ -1,0 +1,9 @@
+{
+  "version": "v1",
+  "description": "Baseline capture of the existing Week 16 grading-agent behavior.",
+  "system_prompt_id": "grading-system-v1",
+  "system_prompt_path": "backend/app/mlops/prompts/grading_system_v1.txt",
+  "planner_prompt_id": "week16-inline-planner-v1",
+  "planner_prompt_path": "backend/app/mlops/prompts/planner_v1.txt",
+  "evaluation_mode": "deterministic_scripted_harness"
+}

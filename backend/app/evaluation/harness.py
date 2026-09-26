@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from backend.app.agent.loop import run_question_agent
-from backend.app.agent.schemas import AgentDecision, GradeVerification
+from backend.app.agent.schemas import AgentDecision, AgentState, GradeVerification
 from backend.app.evaluation.cases import EvaluationCase, build_deterministic_cases
 from backend.app.evaluation.failure_injection import failing_retrieval
 from backend.app.evaluation.metrics import EvaluationRecord, aggregate_records
@@ -60,14 +60,14 @@ def _failure_for(case: EvaluationCase, state) -> tuple[str | None, str | None]:
     return None, None
 
 
-def run_case(
+def _run_case_with_state(
     case: EvaluationCase,
     *,
     planner=None,
     grade_fn=None,
     retrieve_fn=None,
     reference_set_id: str = "evaluation-refs",
-) -> EvaluationRecord:
+) -> tuple[EvaluationRecord, AgentState]:
     planner = planner or ScriptedPlanner(list(case.decisions), list(case.verification_results))
     retrieval = retrieve_fn or (
         failing_retrieval if case.retrieval_failure else lambda **kwargs: _retrieval(case.case_id, **kwargs)
@@ -113,7 +113,7 @@ def run_case(
     )
     usage = state.token_usage
     failure_class, failure_description = _failure_for(case, state)
-    return EvaluationRecord(
+    record = EvaluationRecord(
         case_id=case.case_id,
         outcome=state.status,
         completed_correctly=correct,
@@ -128,6 +128,26 @@ def run_case(
         failure_description=failure_description,
         trajectory=actions,
     )
+    return record, state
+
+
+def run_case(
+    case: EvaluationCase,
+    *,
+    planner=None,
+    grade_fn=None,
+    retrieve_fn=None,
+    reference_set_id: str = "evaluation-refs",
+) -> EvaluationRecord:
+    """Run one evaluation case while preserving the original public return type."""
+    record, _state = _run_case_with_state(
+        case,
+        planner=planner,
+        grade_fn=grade_fn,
+        retrieve_fn=retrieve_fn,
+        reference_set_id=reference_set_id,
+    )
+    return record
 
 
 def run_evaluation(
@@ -149,6 +169,34 @@ def run_evaluation(
         for case in (cases or build_deterministic_cases())
     ]
     return records, aggregate_records(records)
+
+
+def run_evaluation_with_states(
+    cases: list[EvaluationCase] | None = None,
+    *,
+    planner_factory=None,
+    grade_fn_factory=None,
+    retrieve_fn=None,
+    reference_set_id: str = "evaluation-refs",
+) -> tuple[list[EvaluationRecord], dict, list[AgentState]]:
+    """Run the existing harness and return its authoritative agent states for tracing.
+
+    This does not add another agent telemetry representation. Callers can serialize
+    the returned `AgentState` instances using their own artifact format.
+    """
+    outputs = [
+        _run_case_with_state(
+            case,
+            planner=planner_factory(case) if planner_factory else None,
+            grade_fn=grade_fn_factory(case) if grade_fn_factory else None,
+            retrieve_fn=retrieve_fn,
+            reference_set_id=reference_set_id,
+        )
+        for case in (cases or build_deterministic_cases())
+    ]
+    records = [record for record, _state in outputs]
+    states = [state for _record, state in outputs]
+    return records, aggregate_records(records), states
 
 
 if __name__ == "__main__":
