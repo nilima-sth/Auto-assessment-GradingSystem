@@ -63,7 +63,7 @@ def grade_question_with_agent(
     flagged_ocr_text: str | None,
     reference_set_id: str | None,
 ) -> AgentState:
-    """Run one model-directed grading trajectory before persistence."""
+    """Grade one question through the Week 16 decision loop."""
     provider = get_llm_provider()
     planner = (
         provider
@@ -270,7 +270,7 @@ async def grade_batch_async(
     reference_set_id: str | None = None,
 ) -> dict:
     """Grade PDFs with bounded concurrent OCR/mapping and LLM grading."""
-    # Retain the original helper as a compatibility surface for Week 15 callers/tests.
+    # Keep the Week 15 helper available for older callers and tests.
     _ = _bounded_grade_answer
     settings = get_settings()
     questions, model_answers = load_exam(exam_path)

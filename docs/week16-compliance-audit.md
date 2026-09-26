@@ -1,4 +1,4 @@
-# Week 16 Compliance Checklist
+# Week 16 Checklist
 
 | Requirement | Implementation | Evidence |
 | --- | --- | --- |
@@ -14,5 +14,3 @@
 | Skill vs Agent | README Week 16 section | Deterministic capabilities versus decision controller is stated. |
 | Tool boundary | `run_question_agent` and deterministic service persistence | README and architecture diagram document the boundary. |
 | Existing Week 15 behavior | Grading service compatibility path and existing tests | Full pytest suite passes. |
-
-The deterministic evaluation does not call an LLM. Gemini is configured but has no credential; vLLM is unreachable; Ollama is installed without a local model. No live-agent result is claimed.

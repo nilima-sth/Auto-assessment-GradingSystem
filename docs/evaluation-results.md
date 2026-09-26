@@ -1,6 +1,6 @@
 # Week 16 Evaluation Results
 
-Generated from `backend.app.evaluation.harness` using the actual `run_question_agent` loop and deterministic scripted planners/tools. The scripted run is reproducible and does not call an external LLM. Its 100% result validates loop mechanics and safety behavior only; it is not evidence that a live LLM planner would achieve 100%.
+I ran `backend.app.evaluation.harness` with scripted planners and tools. It still goes through `run_question_agent`, but it does not make an external LLM request. The run can be repeated locally. Its 100% result shows that the loop and safety checks behave as expected; it does not show that a live model would score 100%.
 
 | Case | Outcome | Correct Tools | Steps | Input Tokens | Output Tokens | Total Tokens | Failure |
 | ---- | ------- | ------------- | ----- | ------------ | ------------- | ------------ | ------- |
@@ -24,6 +24,10 @@ Generated from `backend.app.evaluation.harness` using the actual `run_question_a
 
 ## Failure Classification
 
-The retrieval timeout is a soft failure because the retrieval tool failed, the failure was recorded, no evidence was invented, no grade was finalized, and the agent returned manual review. It is not cascading because the failed result was not passed into grading or finish actions.
+The retrieval timeout is a soft failure. The failed call was recorded, no evidence was invented, no grade was finalized, and the agent returned manual review. It is not cascading because the failed result never reached grading or a finish action.
 
-The harness accepts injected real planners/providers through `run_evaluation(..., planner_factory=..., grade_fn_factory=..., retrieve_fn=...)`. No live run was recorded: Gemini credentials were absent, the vLLM endpoint was unreachable, and Ollama had no locally installed model. Therefore the deterministic metrics must not be presented as live-agent success metrics.
+The harness can accept real planners and providers through `run_evaluation(..., planner_factory=..., grade_fn_factory=..., retrieve_fn=...)`. I did not record a live run: Gemini had no configured credential, vLLM was not reachable, and Ollama had no local model. The numbers above should therefore be read as a loop test, not as live-agent performance.
+
+## Live Gemini Check
+
+I also tried to start a live planner check with the configured model name, `gemini-3.6-flash`, using `GeminiProvider` directly. The process had no `GEMINI_API_KEY` in its environment and no local `.env` file supplied one, so the provider stopped before making an API request. Model reachability, live trajectories, and live token counts could not be measured.

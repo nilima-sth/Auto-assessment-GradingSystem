@@ -2,9 +2,8 @@ from __future__ import annotations
 
 
 class InjectedRetrievalTimeout(TimeoutError):
-    """Controlled test-only retrieval failure."""
+    """Retrieval error used only by the evaluation test."""
 
 
 def failing_retrieval(**_kwargs):
     raise InjectedRetrievalTimeout("injected retrieval timeout")
-

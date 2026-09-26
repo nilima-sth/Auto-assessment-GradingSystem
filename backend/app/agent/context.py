@@ -4,7 +4,7 @@ from backend.app.agent.schemas import AgentState
 
 
 def build_agent_context(state: AgentState, *, max_chunks: int = 4, max_chars: int = 12000) -> str:
-    """Build a bounded context pack; full outputs remain in AgentState."""
+    """Prepare the short context sent to the planner."""
     chunks = state.retrieved_chunks[:max_chunks]
     evidence = "\n".join(
         f"[{item.get('source', 'reference')}#{item.get('chunk_index', 0)}] "
@@ -25,4 +25,3 @@ Previous action summaries:
 {summaries}
 Iteration: {state.current_iteration}"""
     return context[:max_chars]
-

@@ -1,6 +1,6 @@
 # Week 16 Architecture
 
-The system uses one grading agent per question. The agent starts after OCR and semantic answer mapping and ends before deterministic SQLite persistence.
+There is one grading agent for each question. It starts after OCR and answer mapping, and it hands the result back to the application before anything is written to SQLite.
 
 ```mermaid
 flowchart TD
@@ -13,7 +13,7 @@ flowchart TD
     L --> D{Validated action}
     D -->|retrieve_context| R[RAG retrieval tool]
     D -->|grade_answer| G[Existing grading provider]
-    D -->|verify_grade| V[Independent verification provider]
+    D -->|verify_grade| V[Verification call]
     D -->|request_clarification| H[Manual review]
     D -->|finish| F[Finalized question result]
     R --> A
@@ -25,7 +25,6 @@ flowchart TD
     H --> N[No final grade row; explicit manual_review response]
 ```
 
-The model selects only schema-validated actions. Python owns tool execution, iteration limits, validation, and persistence. Full trajectories remain in `AgentState`; the planner receives bounded evidence and concise action summaries.
+The model chooses from the small set of allowed actions. Python runs the tools, checks the arguments, enforces the iteration limit, and handles persistence. The complete path is kept in `AgentState`; the planner only sees the shortened context needed for its next decision.
 
-The architecture is single-agent rather than multi-agent because each question has one tightly scoped decision process. Separate agents would add coordination and token overhead without a separate ownership boundary in this application.
-
+I chose a single-agent design because each question has one short decision process. Splitting that work across several agents would add coordination and extra model calls without giving any part of the application a separate responsibility.

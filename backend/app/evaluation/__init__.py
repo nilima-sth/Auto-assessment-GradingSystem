@@ -1,2 +1,1 @@
-"""Small, dependency-free evaluation harness for the question agent."""
-
+"""Evaluation helpers for the grading agent."""

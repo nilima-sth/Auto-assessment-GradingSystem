@@ -1,2 +1,1 @@
-"""Single-agent grading loop and its explicit state contracts."""
-
+"""The per-question grading agent."""
